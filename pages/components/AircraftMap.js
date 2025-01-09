@@ -12,7 +12,7 @@ const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ss
 const AircraftMap = () => {
   const [aircrafts, setAircrafts] = useState([]);
   const [viewport, setViewport] = useState({
-    center: [51.505, -0.09],
+    center: [32.011398, 34.8867],
     zoom: 5,
   });
   const [isClient, setIsClient] = useState(false);
