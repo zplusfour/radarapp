@@ -2,69 +2,33 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import dynamic from 'next/dynamic';
 
-// Dynamically import Leaflet components
+
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false });
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false });
 const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false });
+const GeoJSON = dynamic(() => import('react-leaflet').then(mod => mod.GeoJSON), { ssr: false });
 
 const AircraftMap = () => {
   const [aircrafts, setAircrafts] = useState([]);
-  const [userLocation, setUserLocation] = useState(null); // To store user's location
   const [viewport, setViewport] = useState({
-    center: [32.011398, 34.8867], // Default center
-    zoom: 5,                     // Default zoom
+    center: [0, 0],
+    zoom: 5,
   });
   const [isClient, setIsClient] = useState(false);
+  const [userLocation, setUserLocation] = useState(null);
 
   useEffect(() => {
     setIsClient(true);
   }, []);
 
-  // Get user's location
-  const getUserLocation = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords;
-          setUserLocation([latitude, longitude]);
-          setViewport({
-            center: [latitude, longitude],
-            zoom: 10, // Adjust zoom level based on preference
-          });
-        },
-        (error) => {
-          console.error('Error getting user location:', error);
-          // Fallback to default location if permission is denied
-          setUserLocation(null); // No user location
-          setViewport({
-            center: [32.011398, 34.8867], // Default fallback center
-            zoom: 5,
-          });
-        }
-      );
-    } else {
-      console.error('Geolocation is not supported by this browser.');
-      // Fallback to default location if geolocation is not supported
-      setUserLocation(null);
-      setViewport({
-        center: [32.011398, 34.8867], // Default fallback center
-        zoom: 5,
-      });
-    }
-  };
-
-  useEffect(() => {
-    getUserLocation(); // Call to get user's location when the component mounts
-  }, []);
-
   const fetchAircraftData = async (lat, lon, zoom) => {
-    const radius = Math.min((250 * zoom) / 10, 250); // Radius capped at 250nm
+    const radius = Math.min((250 * zoom) / 10, 250);
     try {
       const response = await axios.get(
         `https://corsproxy.io/https://api.adsb.lol/v2/point/${lat}/${lon}/${radius}`
       );
-      setAircrafts(response.data.ac || []); // Update aircraft data
+      setAircrafts(response.data.ac || []);
     } catch (error) {
       console.error('Error fetching aircraft data:', error);
     }
@@ -72,9 +36,13 @@ const AircraftMap = () => {
 
   useEffect(() => {
     const { center, zoom } = viewport;
-    // Fetch aircraft data on viewport change
     fetchAircraftData(center[0], center[1], zoom);
-  }, [viewport]); // Dependency on viewport to refetch on changes
+  }, []);
+
+  useEffect(() => {
+    const { center, zoom } = viewport;
+    fetchAircraftData(center[0], center[1], zoom);
+  }, [viewport]);
 
   const handleViewportChange = (map) => {
     const newCenter = map.getCenter();
@@ -85,6 +53,38 @@ const AircraftMap = () => {
       zoom: newZoom,
     });
   };
+
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      const { center, zoom } = viewport;
+      fetchAircraftData(center[0], center[1], zoom);
+    }, 2000);
+
+    return () => clearInterval(intervalId);
+  }, [viewport]);
+
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserLocation({
+            lat: position.coords.latitude,
+            lon: position.coords.longitude,
+          });
+          setViewport({
+            center: [position.coords.latitude, position.coords.longitude],
+            zoom: 10,
+          });
+        },
+        (error) => {
+          console.error("Error getting user location:", error);
+        }
+      );
+    } else {
+      console.error("Geolocation is not supported by this browser.");
+    }
+  }, []);
 
   const createHeadingIcon = (heading) => {
     const L = require('leaflet');
@@ -113,13 +113,6 @@ const AircraftMap = () => {
         }}
       >
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-        {/* {userLocation && (
-          <Marker position={userLocation}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-circle-fill" viewBox="0 0 16 16">
-  <circle cx="8" cy="8" r="8"/>
-</svg>
-          </Marker>
-        )} */}
 
         {aircrafts.map((aircraft, index) => (
           <Marker
@@ -132,8 +125,8 @@ const AircraftMap = () => {
                 <h2>{aircraft.flight || 'Unknown'}</h2>
                 <h3>{aircraft.t || 'N/A'}</h3>
                 <hr/>
-                <p>Altitude: {aircraft.alt_geom || 'N/A'}ft</p>
-                <p>Speed: {aircraft.ias}kts</p>
+                <p>Altitude: {aircraft.alt_geom+'kts' || 'N/A'}</p>
+                <p>Speed: {(aircraft.ias+'kts') || 'N/A'}</p>
               </div>
             </Popup>
           </Marker>
