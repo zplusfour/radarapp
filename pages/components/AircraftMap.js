@@ -12,25 +12,23 @@ const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ss
 const AircraftMap = () => {
   const [aircrafts, setAircrafts] = useState([]);
   const [viewport, setViewport] = useState({
-    center: [51.505, -0.09], // Initial map center (London, for example)
+    center: [51.505, -0.09],
     zoom: 5,
   });
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
-    // Set isClient to true once the component has mounted (client-side only)
     setIsClient(true);
   }, []);
 
   useEffect(() => {
-    // Fetch aircraft data based on current map center and radius
     const fetchData = async () => {
       const { center, zoom } = viewport;
-      const radius = 250 * (zoom / 10); // Adjust radius based on zoom level (just an example)
+      const radius = 250 * (zoom / 10);
       // const { lat, lng } = center;
 
       try {
-        const response = await axios.get(`https://api.adsb.lol/v2/point/${center[0]}/${center[1]}/${radius}`);
+        const response = await axios.get(`https://corsproxy.io/https://api.adsb.lol/v2/point/${center[0]}/${center[1]}/${radius}`);
         console.log(response);
         setAircrafts(response.data.ac);
       } catch (error) {
@@ -41,14 +39,12 @@ const AircraftMap = () => {
     fetchData();
   }, [viewport]);
 
-  // Handle map movements to adjust the viewport state
   const handleViewportChange = (map) => {
     const newCenter = map.getCenter();
     const newZoom = map.getZoom();
     setViewport({ center: [newCenter.lat, newCenter.lng], zoom: newZoom });
   };
 
-  // Function to create a rotated marker icon based on the aircraft heading (track)
   const createHeadingIcon = (heading) => {
     const L = require('leaflet');
     const icon = L.divIcon({
@@ -59,7 +55,6 @@ const AircraftMap = () => {
     return icon;
   };
 
-  // Don't render map until we are on the client
   if (!isClient) {
     return null;
   }
@@ -77,7 +72,7 @@ const AircraftMap = () => {
           <Marker
             key={index}
             position={[aircraft.lat, aircraft.lon]}
-            icon={createHeadingIcon(aircraft.track)} // Rotate marker based on track (heading)
+            icon={createHeadingIcon(aircraft.track)}
           >
             <Popup>
               <div>
