@@ -10,17 +10,23 @@ const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ss
 const GeoJSON = dynamic(() => import('react-leaflet').then(mod => mod.GeoJSON), { ssr: false });
 
 const AircraftMap = () => {
+  const [imagesData, setImagesData] = useState({});
+  const [userLocation, setUserLocation] = useState(null);
   const [aircrafts, setAircrafts] = useState([]);
   const [viewport, setViewport] = useState({
-    center: [0, 0],
+    center: [0,0],
     zoom: 5,
   });
   const [isClient, setIsClient] = useState(false);
-  const [userLocation, setUserLocation] = useState(null);
 
   useEffect(() => {
     setIsClient(true);
   }, []);
+
+  const fetchImageAndAuthor = async (registration) => {
+    const rs = await axios.get(`/api/image?registration=${registration}`);
+    return rs.data; // { image, author }
+  };
 
   const fetchAircraftData = async (lat, lon, zoom) => {
     const radius = Math.min((250 * zoom) / 10, 250);
@@ -86,6 +92,26 @@ const AircraftMap = () => {
     }
   }, []);
 
+  useEffect(() => {
+    const fetchData = async () => {
+      const data = {};
+      for (const aircraft of aircrafts) {
+        if (aircraft.r) {
+          try {
+            const result = await fetchImageAndAuthor(aircraft.r);
+            data[aircraft.r] = result;
+          } catch (error) {
+            console.error(`Failed to fetch image for ${aircraft.r}:`, error);
+            data[aircraft.r] = { image: null, author: 'Unknown' };
+          }
+        }
+      }
+      setImagesData(data);
+    };
+
+    fetchData();
+  }, [aircrafts]);
+
   const createHeadingIcon = (heading) => {
     const L = require('leaflet');
     return L.divIcon({
@@ -115,22 +141,36 @@ const AircraftMap = () => {
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
 
         {aircrafts.map((aircraft, index) => (
-          <Marker
-            key={index}
-            position={[aircraft.lat, aircraft.lon]}
-            icon={createHeadingIcon(aircraft.track)}
-          >
-            <Popup>
-              <div>
-                <h2>{aircraft.flight || 'Unknown'}</h2>
-                <h3>{aircraft.t || 'N/A'}</h3>
-                <hr/>
-                <p>Altitude: {aircraft.alt_geom+'kts' || 'N/A'}</p>
-                <p>Speed: {(aircraft.ias+'kts') || 'N/A'}</p>
-              </div>
-            </Popup>
-          </Marker>
-        ))}
+        <Marker
+          key={index}
+          position={[aircraft.lat, aircraft.lon]}
+          icon={createHeadingIcon(aircraft.track)}
+        >
+          <Popup>
+            <div>
+              {imagesData[aircraft.r]?.image ? (
+                <a href={imagesData[aircraft.r].image} target="_blank" rel="noopener noreferrer">
+                  <img
+                    src={imagesData[aircraft.r].image}
+                    title={`© ${imagesData[aircraft.r].author}`}
+                    alt={`Photo by ${imagesData[aircraft.r].author}`}
+                    height={150}
+                    width={250}
+                  />
+                </a>
+              ) : (
+                <p>Loading image...</p>
+              )}
+              <h2>{aircraft.flight || 'Unknown'}</h2>
+              <h3>{aircraft.t || 'N/A'}</h3>
+              <hr />
+              <p>Reg: {aircraft.r}</p>
+              <p>Altitude: {aircraft.alt_geom ? `${aircraft.alt_geom}ft` : 'N/A'}</p>
+              <p>Speed: {aircraft.ias ? `${aircraft.ias}kts` : 'N/A'}</p>
+            </div>
+          </Popup>
+        </Marker>
+      ))}
       </MapContainer>
     </div>
   );
